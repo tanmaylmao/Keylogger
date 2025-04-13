@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keylogger</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Keylogger</h1>
+        <p>Press the buttons below to start or stop keylogging.</p>
+        <div class="buttons">
+            <button onclick="startLogging()">Start Keylogging</button>
+            <button onclick="stopLogging()">Stop Keylogging</button>
+        </div>
+        <p>Logged keys will be saved in <code>note.txt</code>.</p>
+    </div>
+
+    <script type="text/javascript" src="/eel.js"></script>
+    <script>
+        function startLogging() {
+            eel.start_logging();
+        }
+
+        function stopLogging() {
+            eel.stop_logging();
+        }
+    </script>
+</body>
+</html>

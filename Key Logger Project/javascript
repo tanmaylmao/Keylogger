@@ -1,0 +1,26 @@
+function startKeylogger() {
+    eel.start_logging()(function(response) {
+        alert(response);  // You can change this to display in a div if needed
+        console.log(response);
+    });
+}
+
+function stopKeylogger() {
+    eel.stop_logging()(function(response) {
+        alert(response);  // You can change this to display in a div if needed
+        console.log(response);
+    });
+}
+
+// Optionally: auto bind buttons if using button IDs
+document.addEventListener("DOMContentLoaded", function () {
+    const startBtn = document.getElementById("start-btn");
+    const stopBtn = document.getElementById("stop-btn");
+
+    if (startBtn) {
+        startBtn.addEventListener("click", startKeylogger);
+    }
+    if (stopBtn) {
+        stopBtn.addEventListener("click", stopKeylogger);
+    }
+});

